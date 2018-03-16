@@ -5,6 +5,16 @@ import os
 import sys
 
 #==========================================================
+# Configuration
+#==========================================================
+
+defaultUpdateInterval = 60 # In seconds.
+
+#==========================================================
+# Library
+#==========================================================
+
+#==========================================================
 class File(object):
 	
 	#=============================
@@ -106,14 +116,18 @@ class DataStore(object):
 			return self.filePath.write(data, "w")
 
 class Data(object):
-	def __init__(self, address, storePath):
-		self.store = storePath
+	def __init__(self, address, storePath, updateInterval=defaultUpdateInterval):
+		self.storeFile(storePath)
 		self.address = address
-		
-	@property
+		self.updatInterval = updateInterval
 	
-	@property
 	def get(self):
+		if self.store.secondsSinceLastModification > self.updateInterval:
+			pass#TODO
+		else:
+			self.storeFile.read()
+			
+
 		
 
 # Configuration
