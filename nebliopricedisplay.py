@@ -1,14 +1,20 @@
-#/usr/bin/env python3
+#!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 
 import os
 import sys
+import time
+import json
+from urllib.request import Request, urlopen
 
 #==========================================================
 # Configuration
 #==========================================================
 
-defaultUpdateInterval = 60 # In seconds.
+marketscannersDirPath=os.path.join(os.path.expanduser("~"), ".local", "marketscanners")
+dataStoreFilePath=os.path.join(marketscannersDirPath, "nebliopricedisplay")
+coin = "NEBL"
+defaultUpdateInterval = 360 # In seconds.
 
 #==========================================================
 # Library
@@ -70,6 +76,10 @@ class File(object):
 		with open(self.path, "r") as fileHandler:
 			return fileHandler.read()
 	
+	def write(self, data):
+		with open(self.path, "w") as fileHandler:
+			fileHandler.write(str(data))
+	
 	def delete(self):
 		"""Deletes the file from the filesystem."""
 		os.remove(self.path)
@@ -102,39 +112,35 @@ class File(object):
 					os.makedirs(self.dirPath)
 			self.overwrite("")
 
-class DataStore(object):
-	def __init__(self, storeFilePath):
-		self.filePath = storeFilePath
-	
-	@property
-	def get(self):
-		with open(self.filePath) as storeFile:
-			return self.filePath.read()
-	@property
-	def put(self, data):
-		with open(self.filePath):
-			return self.filePath.write(data, "w")
-
+#==========================================================
 class Data(object):
-	def __init__(self, address, storePath, updateInterval=defaultUpdateInterval):
-		self.storeFile(storePath)
-		self.address = address
-		self.updatInterval = updateInterval
 	
-	def get(self):
-		if self.store.secondsSinceLastModification > self.updateInterval:
-			pass#TODO
-		else:
-			self.storeFile.read()
+	#=============================
+	"""Currency data handler for getting and caching data from a web API."""
+	#=============================
+	
+	def __init__(self, address, storePath, updateInterval=defaultUpdateInterval, startFresh=True):
+		self.cacheFile = File(storePath, make=True, makeDirs=True)
+		self.address = address
+		self.updateInterval = updateInterval
+		self.dict = {}
+		self.string = ""
+		if startFresh:
+			self.refresh()
+	
+	def refreshCache(self):
+		if self.cacheFile.secondsSinceLastModification > self.updateInterval:
 			
-
+			self.cacheFile.write(urlopen(Request(self.address)).read().decode())
+	
+	def refresh(self):
+		self.refreshCache()
+		self.string = self.cacheFile.read()
+		self.dict = json.loads(self.string)
 		
 
-# Configuration
-marketscannersDirPath=os.path.join(os.path.expanduser("~"), ".local", "marketscanners")
-dataStoreFilePath=os.path.join(marketscannersDirPath, "nebliopricedisplay")
+if __name__ == "__main__":
 
-# Make sure the required directories and files exist.
-os.mkdir(marketscannersDirPath)
-
-dataStore = DataStore(dataStoreFilePath)
+	data = Data("https://www.cryptopia.co.nz/api/GetMarketHistory/{coin}_BTC/".format(coin=coin),\
+		dataStoreFilePath, defaultUpdateInterval)
+	data.
