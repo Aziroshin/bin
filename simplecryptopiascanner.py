@@ -194,20 +194,30 @@ class MarketHistory(object):
 					break
 		return mergedTimeWindows
 	
-	
 	def inMinutes(self, minutes):
 		# Might not be completely robust against leap seconds.
+		mergedWindows = []
 		if 60 % minutes == 0:
-			while True:
-				unmergedTimeWindows = self.in1Minutes
-				unmergedTimeWindowIndex = 0
+			unmergedTimeWindowIndex = 0
+			unmergedTimeWindows = self.in1Minutes
+			dprint("pre")
+			while unmergedTimeWindowIndex < len(unmergedTimeWindows):
+				dprint("outer")
+				currentMergerWindow = unmergedTimeWindows[unmergedTimeWindowIndex]
 				counter = 0
-				for count in range(0, counter):
+				for count in range(0, minutes):
+					dprint("inner")
+					try:
+						dprint("IndexError{0}".format(unmergedTimeWindowIndex))
+						currentMergeeWindow = unmergedTimeWindows[unmergedTimeWindowIndex+counter+1]
+					except IndexError:
+						break
+					unmergedTimeWindowIndex += 1
 					counter += 1
-					
 		else:
 			MarketHistoryTimeWindowError(\
 				"A non-divisor of 60 has been specified as a time window: {0}".format(minutes))
+		return mergedWindows
 		
 #==========================================================
 class Data(object):
@@ -256,20 +266,31 @@ if __name__ == "__main__":
 			updateInterval=defaultUpdateInterval,\
 			startFresh=False) #NOTE: startFresh=False for debugging purposes.
 	
+	#=============================
 	# Testing & Debugging
+	#=============================
+	
+	# List methods to be tested.
 	marketHistoryIn1SecondSlices = MarketHistory(data.dict["Data"]).in1Seconds
 	marketHistoryIn1MinuteSlices = MarketHistory(data.dict["Data"]).in1Minutes
+	marketHistoryIn5MinuteSlices = MarketHistory(data.dict["Data"]).inMinutes(minutes=5)
 	
+	# .in1Seconds
 	for window in marketHistoryIn1SecondSlices:
 		for order in window.filledOrders:
 			#dprint("Filled order [{begin}:{end}] timestamp: {timestamp}"\
 			#	.format(timestamp=order.data["Timestamp"], begin=window._begin, end=window._end))
 		
 			pass
+	
+	# .in1Minutes
 	for window in marketHistoryIn1MinuteSlices:
 		print("Time window: {begin}::{end}".format(begin=window.begin, end=window.end))
 		for order in window.filledOrders:
 			print("\tOrder (by timestamp): {timestamp}".format(timestamp=order.timestamp))
+			
+	# Overall respective number of windows: Number should decrease as the list goes on.
 	dprint("Filled orders found: {0}".format(len(data.dict["Data"])))
 	dprint("Time windows found (.in1Seconds): {0}".format(len(marketHistoryIn1SecondSlices)))
 	dprint("Time windows found (.in1Minutes): {0}".format(len(marketHistoryIn1MinuteSlices)))
+	dprint("Time windows found (.inMinutes(minutes=5)): {0}".format(len(marketHistoryIn5MinuteSlices)))
