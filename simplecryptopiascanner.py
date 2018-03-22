@@ -66,6 +66,9 @@ class Datetime(object):
 		self.month = self.datetime.month
 		self.year = self.datetime.year
 		
+	@property
+	def nextMinuteTimestamp(self):
+		
 
 class MarketHistoryTimeWindow(object):
 	"""Groups filled orders of a specified time window of the market history together."""
@@ -150,6 +153,21 @@ class MarketHistoryTimeWindow(object):
 			else:
 				self.addFilledOrder(filledOrder)
 		
+	def absorbEncompassedWindows(self, windows):
+		"""Absorbs windows from the specified list until we find a window that falls outside of our time window."""
+		numberOfWindowsAbsorbed = 0
+		for window in windows:
+			try:
+				self.addWindow(window, adjust=False)
+			except:
+				break
+			numberOfWindowsAbsorbed += 1
+		try:
+			return windows[numberOfWindowsAbsorbed:]
+		except IndexError: # We absorbed all of them, so there was nothing left at the next index.
+			return []
+		
+	
 
 #==========================================================
 # API Specific Classes
@@ -217,7 +235,7 @@ class MarketHistory(object):
 					break
 		return mergedTimeWindows
 	
-	def inMinutes(self, minutes):
+	def inMinutesDeprecated(self, minutes):
 		# Is not programmed to be robust against leap seconds.
 		mergedWindows = []
 		if 60 % minutes == 0:
@@ -245,6 +263,9 @@ class MarketHistory(object):
 				"A non-divisor of 60 has been specified as a time window: {0}".format(minutes))
 		return mergedWindows
 		
+		def inMinutes(self, minutes):
+			
+	
 #==========================================================
 class Data(object):
 	
