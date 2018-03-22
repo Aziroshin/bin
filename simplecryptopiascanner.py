@@ -5,7 +5,7 @@ import os
 import sys
 import time
 import json
-from datetime import datetime
+import datetime
 from lib.azirolib.filemanagement import File
 from urllib.request import Request, urlopen
 from lib.azirolib.debugging import dprint
@@ -31,6 +31,8 @@ class MarketHistoryTimeWindowTimestampsUninitializedError(Exception):
 
 class MarketHistoryTimeWindowError(Exception):
 	pass
+class MarketHistoryTimeWindowOrderOutOfBoundsError(Exception):
+	pass
 
 #==========================================================
 # API Neutral Classes
@@ -49,6 +51,22 @@ class FilledOrder(object):
 		self.timestamp = timestamp
 		self.data = data
 
+class Datetime(object):
+	"""Represents a date and time in various formats.
+	Takes a UNIX timestamp for the constructor."""
+	def __init__(self, timestamp):
+		self.timestamp = timestamp
+		self.datetime = datetime.datetime.fromtimestamp(self.timestamp)
+		self.iso8601 = self.datetime.strftime("%Y-%m-%dT%H-%M-%S")
+		self.humanReadable = self.datetime.strftime("%H:%M:%S, %Y-%m-%d")
+		self.second = self.datetime.second
+		self.minute = self.datetime.minute
+		self.hour = self.datetime.hour
+		self.day = self.datetime.day
+		self.month = self.datetime.month
+		self.year = self.datetime.year
+		
+
 class MarketHistoryTimeWindow(object):
 	"""Groups filled orders of a specified time window of the market history together."""
 	def __init__(self, begin=0, end=0):
@@ -62,7 +80,7 @@ class MarketHistoryTimeWindow(object):
 		if self._begin == 0:
 			raise MarketHistoryTimeWindowTimestampsUninitializedError()
 		else:
-			return self._begin
+			return Datetime(self._begin)
 		
 	@begin.setter
 	def begin(self, timestamp):
@@ -74,7 +92,7 @@ class MarketHistoryTimeWindow(object):
 		if self._end == 0:
 			raise MarketHistoryTimeWindowTimestampsUninitializedError()
 		else:
-			return self._end
+			return Datetime(self._end)
 	
 	@end.setter
 	def end(self, timestamp):
@@ -116,9 +134,13 @@ class MarketHistoryTimeWindow(object):
 		beginning and end have already been configured through the constructor, or are
 		configured by other means. They're NOT supposed to be left unconfigured at all. """
 		
-		self.filledOrders.append(order)
 		if not timestamp == None:
 			self.adjust(timestamp)
+		elif not self.encompasses(order.timestamp):
+			raise MarketHistoryTimeWindowOrderOutOfBoundsError(\
+				"Tried to add a filled order with timestamp {timestamp}, which is outside our window: {begin}:{end}"\
+					.format(timestamp=order.timestamp, begin=self.begin.timestamp, end=self.end.timestamp))
+		self.filledOrders.append(order)
 			
 	def addWindow(self, window, adjust=True):
 		"""Takes another MarketHistoryTimeWindow and adds its .filledOrders to ours."""
@@ -127,6 +149,7 @@ class MarketHistoryTimeWindow(object):
 				self.addFilledOrder(filledOrder, timestamp=filledOrder.timestamp)
 			else:
 				self.addFilledOrder(filledOrder)
+		
 
 #==========================================================
 # API Specific Classes
@@ -177,7 +200,7 @@ class MarketHistory(object):
 			currentMergerWindow = unmergedTimeWindows[unmergedTimeWindowIndex]
 			mergedTimeWindows.append(currentMergerWindow)
 			# We could choose either .begin or .end; In the case of .in1Seconds, they're the same.
-			currentMergerMinute = datetime.fromtimestamp(currentMergerWindow.end).minute
+			currentMergerMinute = currentMergerWindow.end.minute
 			while True:
 				# Merge subsequent windows until the minute changes.
 				unmergedTimeWindowIndex += 1
@@ -185,7 +208,7 @@ class MarketHistory(object):
 					currentMergeeWindow = unmergedTimeWindows[unmergedTimeWindowIndex]
 				except IndexError:
 					break
-				currentMergeeMinute = datetime.fromtimestamp(currentMergeeWindow.end).minute
+				currentMergeeMinute = currentMergeeWindow.end.minute
 				if currentMergerMinute == currentMergeeMinute:
 					currentMergerWindow.addWindow(currentMergeeWindow)
 				else:
@@ -195,24 +218,27 @@ class MarketHistory(object):
 		return mergedTimeWindows
 	
 	def inMinutes(self, minutes):
-		# Might not be completely robust against leap seconds.
+		# Is not programmed to be robust against leap seconds.
 		mergedWindows = []
 		if 60 % minutes == 0:
 			unmergedTimeWindowIndex = 0
 			unmergedTimeWindows = self.in1Minutes
-			dprint("pre")
 			while unmergedTimeWindowIndex < len(unmergedTimeWindows):
-				dprint("outer")
 				currentMergerWindow = unmergedTimeWindows[unmergedTimeWindowIndex]
+				mergedWindows.append(currentMergerWindow)
 				counter = 0
-				for count in range(0, minutes):
-					dprint("inner")
+				for minute in range(0, minutes):
+					dprint(minute)
+					unmergedTimeWindowIndex += 1
 					try:
-						dprint("IndexError{0}".format(unmergedTimeWindowIndex))
-						currentMergeeWindow = unmergedTimeWindows[unmergedTimeWindowIndex+counter+1]
+						currentMergeeWindow = unmergedTimeWindows[unmergedTimeWindowIndex+counter]
 					except IndexError:
 						break
-					unmergedTimeWindowIndex += 1
+					# Are we still within the desired time window?
+					try:
+						currentMergerWindow.addWindow(currentMergeeWindow, adjust=False)
+					except MarketHistoryTimeWindowOrderOutOfBoundsError:
+						break
 					counter += 1
 		else:
 			MarketHistoryTimeWindowError(\
@@ -274,23 +300,51 @@ if __name__ == "__main__":
 	marketHistoryIn1SecondSlices = MarketHistory(data.dict["Data"]).in1Seconds
 	marketHistoryIn1MinuteSlices = MarketHistory(data.dict["Data"]).in1Minutes
 	marketHistoryIn5MinuteSlices = MarketHistory(data.dict["Data"]).inMinutes(minutes=5)
+	marketHistoryIn15MinuteSlices = MarketHistory(data.dict["Data"]).inMinutes(minutes=15)
+	marketHistoryIn30MinuteSlices = MarketHistory(data.dict["Data"]).inMinutes(minutes=30)
 	
 	# .in1Seconds
-	for window in marketHistoryIn1SecondSlices:
-		for order in window.filledOrders:
+	#for window in marketHistoryIn1SecondSlices:
+	#	for order in window.filledOrders:
 			#dprint("Filled order [{begin}:{end}] timestamp: {timestamp}"\
 			#	.format(timestamp=order.data["Timestamp"], begin=window._begin, end=window._end))
-		
-			pass
 	
 	# .in1Minutes
-	for window in marketHistoryIn1MinuteSlices:
-		print("Time window: {begin}::{end}".format(begin=window.begin, end=window.end))
-		for order in window.filledOrders:
-			print("\tOrder (by timestamp): {timestamp}".format(timestamp=order.timestamp))
-			
+	#for window in marketHistoryIn1MinuteSlices:
+	#	print("Time window: {begin}::{end}".format(begin=window.begin, end=window.end))
+	#	for order in window.filledOrders:
+	#		print("\tOrder (by timestamp): {timestamp}".format(timestamp=order.timestamp))
+	
+	# .inMinutes(minutes=5)
+	#for window in marketHistoryIn5MinuteSlices:
+	#	print("Time window: {beginHour}:{beginMinute} -- {endHour}:{endMinute}"\
+	#		.format(beginHour=window.begin.hour, beginMinute=window.begin.minute,\
+	#			endHour=window.end.hour, endMinute=window.end.minute))
+	#	for order in window.filledOrders:
+	#		print("\tOrder (by timestamp): {timestamp}".format(timestamp=order.timestamp))
+	
+	# .inMinutes(minutes=15)
+	#for window in marketHistoryIn15MinuteSlices:
+		#if not window.begin.minute == window.end.minute:
+			#print("Time window: {beginHour}:{beginMinute} -- {endHour}:{endMinute}"\
+				#.format(beginHour=window.begin.hour, beginMinute=window.begin.minute,\
+					#endHour=window.end.hour, endMinute=window.end.minute))
+			#for order in window.filledOrders:
+				#print("\tOrder (by timestamp): {timestamp}".format(timestamp=order.timestamp))
+				
+	# .inMinutes(minutes=30)
+	#for window in marketHistoryIn30MinuteSlices:
+		#if not window.begin.minute == window.end.minute:
+			#print("Time window: {beginHour}:{beginMinute} -- {endHour}:{endMinute}"\
+				#.format(beginHour=window.begin.hour, beginMinute=window.begin.minute,\
+					#endHour=window.end.hour, endMinute=window.end.minute))
+			#for order in window.filledOrders:
+				#print("\tOrder (by timestamp): {timestamp}".format(timestamp=order.timestamp))
+	
 	# Overall respective number of windows: Number should decrease as the list goes on.
 	dprint("Filled orders found: {0}".format(len(data.dict["Data"])))
 	dprint("Time windows found (.in1Seconds): {0}".format(len(marketHistoryIn1SecondSlices)))
 	dprint("Time windows found (.in1Minutes): {0}".format(len(marketHistoryIn1MinuteSlices)))
 	dprint("Time windows found (.inMinutes(minutes=5)): {0}".format(len(marketHistoryIn5MinuteSlices)))
+	dprint("Time windows found (.inMinutes(minutes=15)): {0}".format(len(marketHistoryIn15MinuteSlices)))
+	dprint("Time windows found (.inMinutes(minutes=30)): {0}".format(len(marketHistoryIn30MinuteSlices)))
