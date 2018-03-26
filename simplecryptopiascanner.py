@@ -5,7 +5,7 @@ import os
 import sys
 import time
 import json
-import datetime
+import arrow
 from lib.azirolib.filemanagement import File
 from urllib.request import Request, urlopen
 from lib.azirolib.debugging import dprint
@@ -51,24 +51,63 @@ class FilledOrder(object):
 		self.timestamp = timestamp
 		self.data = data
 
-class Datetime(object):
+class Datetime(arrow.Arrow):
 	"""Represents a date and time in various formats.
 	Takes a UNIX timestamp for the constructor."""
-	def __init__(self, timestamp):
-		self.timestamp = timestamp
-		self.datetime = datetime.datetime.fromtimestamp(self.timestamp)
-		self.iso8601 = self.datetime.strftime("%Y-%m-%dT%H-%M-%S")
-		self.humanReadable = self.datetime.strftime("%H:%M:%S, %Y-%m-%d")
-		self.second = self.datetime.second
-		self.minute = self.datetime.minute
-		self.hour = self.datetime.hour
-		self.day = self.datetime.day
-		self.month = self.datetime.month
-		self.year = self.datetime.year
+	#def __init__(self):
+		#self.timestamp = timestamp
+		#self.datetime = arrow.fromtimestamp(self.timestamp)
+		#self.iso8601 = self.arrow.strftime("%Y-%m-%dT%H-%M-%S")
+		#self.humanReadable = self.arrow.strftime("%H:%M:%S, %Y-%m-%d")
+		#self.microsecond = arrow.microsecond
+		#self.second = self.arrow.second
+		#self.minute = self.arrow.minute
+		#self.hour = self.arrow.hour
+		#self.day = self.arrow.day
+		#self.month = self.arrow.month
+		#self.year = self.arrow.year
 		
 	@property
-	def nextMinuteTimestamp(self):
+	def iso8601(self):
+		return self.strftime("%Y-%m-%dT%H-%M-%S")
+	
+	@property
+	def humanReadable(self):
+		return self.strftime("%H:%M:%S, %Y-%m-%d")
 		
+	def getShifted(self, microsecond=None, second=None,\
+		minute=None, hour=None, day=None, month=None, year=None):
+		
+		"""Returns a Datetime object with altered time attributes."""
+		
+		if microsecond == None: microsecond = self.microsecond
+		if second == None: second = self.second
+		if minute == None: minute = self.minute
+		if hour == None: hour = self.hour
+		if day == None: day = self.day
+		if month == None: month self.month
+		if year == None: year = self.year
+		
+		return Datetime(timestamp=Datetime(microsecond=microsecond, second=second,\
+			minute=minute, hour=hour, day=day, month=month, year=year).timestamp())
+		
+	@property
+	def nextSecondBegin(self):
+		"""Return Datetime object shifted to the next second, zero microseconds."""
+		return self.getShifted(second=self.second+1, microsecond=0)
+		
+	@property
+	def nextMinuteBegin(self):
+		"""Return Datetime object shifted to the next minute, zero seconds and zero microseconds."""
+		
+		
+	@property
+	def nextSecond(self):
+		return self.replace(second=self.second+1, microsecond=0)
+		
+	@property
+	def nextMinute(self):
+		return self.replace(minute=self.minute+1, second=0, microsecond=0)
 
 class MarketHistoryTimeWindow(object):
 	"""Groups filled orders of a specified time window of the market history together."""
