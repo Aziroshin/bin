@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 
+#=======================================================================================
+# Imports
+#=======================================================================================
+#==========================================================
+#=============================
+
 import os
 import sys
 import time
 import json
 import arrow
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as pyplot
 from lib.azirolib.filemanagement import File
 from urllib.request import Request, urlopen
 from lib.azirolib.debugging import dprint
@@ -74,22 +83,6 @@ class Datetime(arrow.Arrow):
 	@property
 	def humanReadable(self):
 		return self.strftime("%H:%M:%S, %Y-%m-%d")
-		
-	def getShifted(self, microsecond=None, second=None,\
-		minute=None, hour=None, day=None, month=None, year=None):
-		
-		"""Returns a Datetime object with altered time attributes."""
-		
-		if microsecond == None: microsecond = self.microsecond
-		if second == None: second = self.second
-		if minute == None: minute = self.minute
-		if hour == None: hour = self.hour
-		if day == None: day = self.day
-		if month == None: month self.month
-		if year == None: year = self.year
-		
-		return Datetime(timestamp=Datetime(microsecond=microsecond, second=second,\
-			minute=minute, hour=hour, day=day, month=month, year=year).timestamp())
 		
 	@property
 	def nextSecondBegin(self):
@@ -303,7 +296,7 @@ class MarketHistory(object):
 		return mergedWindows
 		
 		def inMinutes(self, minutes):
-			
+			pass
 	
 #==========================================================
 class Data(object):
@@ -343,6 +336,62 @@ class Data(object):
 		if noInit:
 			self._initData()
 
+class OhlcGraph(object):
+	def __init__(self, pandasOhlcObject, title=""):
+		"""Takes resample().ohlc data from a DataFrame and displays a graph window.
+		self.pohlc holds the data as provided in pandas ohlc form.
+		self.mohlc holds the transformed, matplotlib friendly form of the data."""
+		
+		# This is just for wild testing purposes.
+		# Right now, I need something to visualize the data fast for debugging.
+		# This will (have to) do. Zero code quality guaranteed.
+		
+		self.pohlc = pandasOhlcObject
+		self.mohlc = self.pohlcToMohlc(self.pohlc)
+		self.figure = pyplot.figure()
+		self.plot = pyplot.subplot2grid((1,1,), (0,0))
+		
+		#=============================
+		# Set up.
+		#=============================
+		# Adaption of the matplotlib example found on:
+		#     https://pythonprogramming.net/candlestick-ohlc-graph-matplotlib-tutorial/
+		
+		x = 0
+		y = len(self.mohlc)
+		
+		matplotlib.candlestick_ohlc(self.plot, self.mohlc, width=0.4,\
+			colorup="#77d879", colordown="#db3f3f")
+		
+		for label in self.plot.xaxis.get_ticklabels():
+			label.set_rotation(45)
+			
+		self.plot.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%Y-%m-%d"))
+		self.plot.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(10))
+		self.plot.grid(True)
+		
+		pyplot.xlabel("Date & Time")
+		pyplot.ylabel("Price")
+		pyplot.title(title)
+		pyplot.subplots_adjust(let=0.9, bottom=0.20, right=0.94, top=0.90, wspace=0.2, hspace=0)
+		pyplot.legend()
+		
+	def pohlcToMohlc(self, pohlc):
+		"""Takes panda OHLC object (pohlc) and returns matplotlib friendly OHLC object (mohlc)."""
+		mohlc = []
+		rowIndex = 0
+		while rowIndex < len(pohlc.index):
+			mohlc.append((pohlc.index, pohlc.open, pohlc.high, pohlc.low, pohlc.close))
+			rowIndex += 1
+		return mohlc
+	
+	def show(self):
+		pyplot.show()
+
+#=======================================================================================
+# Action
+#=======================================================================================
+
 if __name__ == "__main__":
 	for symbol in symbols:
 		data = Data(\
@@ -356,12 +405,48 @@ if __name__ == "__main__":
 	# Testing & Debugging
 	#=============================
 	
+	startTimestamp = data.dict["Data"][len(data.dict["Data"])-1]["Timestamp"]
+	endTimestamp = data.dict["Data"][0]["Timestamp"]
+	start = arrow.Arrow.fromtimestamp(startTimestamp)
+	end = arrow.Arrow.fromtimestamp(endTimestamp)
+	
+	dateRange = pd.date_range(\
+		start=start.format(),\
+		end=end.format(),\
+		freq="min")
+	
+	dataFrame = pd.DataFrame(data.dict["Data"])
+	dataFrame["Timestamp"] = dataFrame["Timestamp"].apply(pd.to_datetime, unit="s")
+	#dprint(dataFrame["Timestamp"])
+	#sys.exit()
+	dataFrame = dataFrame.set_index("Timestamp")
+	
+	ohlc = dataFrame["Price"].resample("15min").ohlc()
+	#for index in ohlc.index:
+	#	dprint(index)
+	
+	OhlcGraph(ohlc, "Cryptopia: NEBL").show()
+	
+	
+	
+	#dprint("{startTimestamp} :: {start}, {endTimestamp} :: {end}".format(\
+		#startTimestamp=startTimestamp, endTimestamp=endTimestamp, start=start, end=end))
+	
+	
+	
+	#dataFrame = pd.DataFrame(\
+		#series,\
+		#index=dateRange)
+	
+	#dprint(data.dict["Data"])
+	
+	
 	# List methods to be tested.
-	marketHistoryIn1SecondSlices = MarketHistory(data.dict["Data"]).in1Seconds
-	marketHistoryIn1MinuteSlices = MarketHistory(data.dict["Data"]).in1Minutes
-	marketHistoryIn5MinuteSlices = MarketHistory(data.dict["Data"]).inMinutes(minutes=5)
-	marketHistoryIn15MinuteSlices = MarketHistory(data.dict["Data"]).inMinutes(minutes=15)
-	marketHistoryIn30MinuteSlices = MarketHistory(data.dict["Data"]).inMinutes(minutes=30)
+	#marketHistoryIn1SecondSlices = MarketHistory(data.dict["Data"]).in1Seconds
+	#marketHistoryIn1MinuteSlices = MarketHistory(data.dict["Data"]).in1Minutes
+	#marketHistoryIn5MinuteSlices = MarketHistory(data.dict["Data"]).inMinutes(minutes=5)
+	#marketHistoryIn15MinuteSlices = MarketHistory(data.dict["Data"]).inMinutes(minutes=15)
+	#marketHistoryIn30MinuteSlices = MarketHistory(data.dict["Data"]).inMinutes(minutes=30)
 	
 	# .in1Seconds
 	#for window in marketHistoryIn1SecondSlices:
@@ -402,9 +487,9 @@ if __name__ == "__main__":
 				#print("\tOrder (by timestamp): {timestamp}".format(timestamp=order.timestamp))
 	
 	# Overall respective number of windows: Number should decrease as the list goes on.
-	dprint("Filled orders found: {0}".format(len(data.dict["Data"])))
-	dprint("Time windows found (.in1Seconds): {0}".format(len(marketHistoryIn1SecondSlices)))
-	dprint("Time windows found (.in1Minutes): {0}".format(len(marketHistoryIn1MinuteSlices)))
-	dprint("Time windows found (.inMinutes(minutes=5)): {0}".format(len(marketHistoryIn5MinuteSlices)))
-	dprint("Time windows found (.inMinutes(minutes=15)): {0}".format(len(marketHistoryIn15MinuteSlices)))
-	dprint("Time windows found (.inMinutes(minutes=30)): {0}".format(len(marketHistoryIn30MinuteSlices)))
+	#dprint("Filled orders found: {0}".format(len(data.dict["Data"])))
+	#dprint("Time windows found (.in1Seconds): {0}".format(len(marketHistoryIn1SecondSlices)))
+	#dprint("Time windows found (.in1Minutes): {0}".format(len(marketHistoryIn1MinuteSlices)))
+	#dprint("Time windows found (.inMinutes(minutes=5)): {0}".format(len(marketHistoryIn5MinuteSlices)))
+	#dprint("Time windows found (.inMinutes(minutes=15)): {0}".format(len(marketHistoryIn15MinuteSlices)))
+	#dprint("Time windows found (.inMinutes(minutes=30)): {0}".format(len(marketHistoryIn30MinuteSlices)))
