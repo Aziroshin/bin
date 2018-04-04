@@ -7,21 +7,43 @@
 #==========================================================
 #=============================
 
-import 
+# Builtins.
+import os
+
+# Third party.
+import arrow
+import pandas as pd
+
+# Stuff particular to our testings.
+from testings.utils.visualization import OhlcGraph
+
+# A special variable SUBJECT is assigned to the module we're performing testings on.
+# Chances are stuff in this section depends on module paths spoofed by the
+# "testing" script upon importing this here testing module.
+import simplecryptopiascanner as SUBJECT # This is the subject of our testings.
+
+#=======================================================================================
+# Configuration
+#=======================================================================================
+
+symbols = ["NEBL"]
+defaultMarketscannersDirPath=os.path.join(os.path.expanduser("~"), ".cache", "simplecryptopiascanner")
+defaultUpdateInterval = 360 # In seconds.
 
 #=======================================================================================
 # Library
 #=======================================================================================
 
+# This class gets instantiated by the "testing" script right after importing this module.
 class Testing(object):
 	def run(self):
 		for symbol in symbols:
-			data = simplecryptopiascanner.Data(\
+			data = SUBJECT.Data(\
 				address="https://www.cryptopia.co.nz/api/GetMarketHistory/{symbol}_BTC/"\
 					.format(symbol=symbol),\
 				storePath=os.path.join(defaultMarketscannersDirPath, "{0}".format(symbol)),\
 				updateInterval=defaultUpdateInterval,\
-				startFresh=False) #NOTE: startFresh=False for debugging purposes.
+				startFresh=True) #NOTE: startFresh=False for debugging purposes.
 		
 		#=============================
 		# Testing & Debugging

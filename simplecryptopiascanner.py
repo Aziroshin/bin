@@ -7,16 +7,31 @@
 #==========================================================
 #=============================
 
+#=============================
+# Builtins.
 import os
 import sys
 import time
 import json
+from urllib.request import Request, urlopen
+
+#=============================
+# Third party.
 import arrow
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as pyplot
+# Kivy
+import kivy
+import kivy.app
+# https://github.com/kivy-garden/garden.matplotlib
+# Could also be obtained through garden install matplotlib
+# Might fancy just linking the repository to make deployment less of a clusterfudge.
+from kivy.garden.matplotlib import FigureCanvasKivyAgg
+
+#=============================
+# Internal.
 from lib.azirolib.filemanagement import File
-from urllib.request import Request, urlopen
 from lib.azirolib.debugging import dprint
 
 #=======================================================================================
@@ -37,10 +52,16 @@ defaultUpdateInterval = 360 # In seconds.
 
 class MarketHistoryTimeWindowTimestampsUninitializedError(Exception):
 	pass
-
 class MarketHistoryTimeWindowError(Exception):
 	pass
 class MarketHistoryTimeWindowOrderOutOfBoundsError(Exception):
+	pass
+
+#==========================================================
+# GUI Classes
+#==========================================================
+
+class Gui(kivy.app.App):
 	pass
 
 #==========================================================
@@ -199,8 +220,6 @@ class MarketHistoryTimeWindow(object):
 		except IndexError: # We absorbed all of them, so there was nothing left at the next index.
 			return []
 		
-	
-
 #==========================================================
 # API Specific Classes
 #==========================================================
@@ -266,7 +285,7 @@ class MarketHistory(object):
 					currentMergerWindow = currentMergeeWindow
 					break
 		return mergedTimeWindows
-	
+		
 	def inMinutesDeprecated(self, minutes):
 		# Is not programmed to be robust against leap seconds.
 		mergedWindows = []
@@ -335,6 +354,8 @@ class Data(object):
 		self.refreshCache()
 		if noInit:
 			self._initData()
+
+
 
 #=======================================================================================
 # Action

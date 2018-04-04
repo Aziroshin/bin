@@ -13,8 +13,10 @@
 #==========================================================
 #=============================
 
+from pathlib import Path
 import argparse
 import os
+import sys
 
 #=======================================================================================
 # Configuration
@@ -24,30 +26,65 @@ import os
 # Library
 #=======================================================================================
 
+#=============================
+# Arguments
+#=============================
+
+class Arguments(object):
+	
+	#=============================
+	"""A basic class for the setup for the arguments we take. Override .setUp() to implement."""
+	#=============================
+	
+	def __init__(self):
+		self.parser = argparse.ArgumentParser()
+		self.setUp()
+		
+	def setUp(self):
+		"""Override this with your particular argument configuration."""
+		pass
+	
+	def get(self):
+		"""Get the initialized argparse.Namespace object for our arguments."""
+		return self.parser.parse_args()
+	
+class TestingArguments(Arguments):
+	
+	#=============================
+	"""A basic class for the setup for the arguments we take. Override .setUp() to implement."""
+	#=============================
+	
+	def setUp(self):
+		
+		""" We take a single argument besides argparse's defaults: Name of the testing module to load.
+		Upon calling --help, we'll also list all the available modules from the testing directory."""
+		
+		# Absolute path to our script.
+		excDirPath = os.path.join(Path(__file__).absolute().parent.as_posix())
+						 
+		self.parser.add_argument(\
+			"module", help="Name of the testing module to run. Consult contents of the"
+			" testing dir for options: {dirContents}"\
+				.format(dirContents=\
+					", ".join(\
+						[fileName.rpartition(".")[0]\
+							for fileName in os.listdir(os.path.join(excDirPath, "testings"))\
+							if not fileName == "__init__.py"\
+							or not Path(os.path.join(excDirPath, fileName)).is_dir\
+						]
+					)
+				)
+			)
+
 #=======================================================================================
 # Action
 #=======================================================================================
 
 if __name__ == "__main__":
 	
-	#==========================================================
-	# Arguments
-	#==========================================================
-	argparser = argparse.arg_parser()
-	
-	# We take a single argument (besides argparse defaults, of course): Name of the testing module to load.
-	# Upon calling --help, we'll also list all the available modules from the testing directory.
-	argparser.add_argument(\
-		"module", help="Name of the testing module to run. Consult contents of the"
-		" testing dir for options:{dirContents}"\
-			.format(dirContents=\
-				[module.rpartition(".")[0] for module in os.listdir(os.path.join(__file__, "testing"))\
-					if not module == "__init__.py"
-				]
-			)
-		)
-			
-	args = argparser.parse_args()
+	args = TestingArguments().get()
+	import simplecryptopiascanner
 
-	chosenModule = __import__("testing.{moduleName}".format(moduleName=args.module))
-	
+	chosenModule = __import__(name="testings.{moduleName}".format(moduleName=args.module),\
+		globals=globals(), locals=locals(), fromlist=[args.module], level=0)
+	chosenModule.Testing().run()
